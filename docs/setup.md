@@ -3,9 +3,19 @@
 ## Prerequisites
 
 1. AWS Account
+   - Admin access rights
+   - IAM user with programmatic access
+   - AWS CLI configured with appropriate credentials
+
 2. GitHub Account
-3. AWS CLI installed and configured
-4. Docker installed locally
+   - Repository admin rights
+   - Personal access token with repo and admin:repo_hook permissions
+
+3. Local Development Environment
+   - AWS CLI installed and configured
+   - Docker installed and running
+   - Git installed
+   - Python 3.9 or later
 
 ## Initial Setup
 
@@ -13,70 +23,35 @@
    ```bash
    git clone https://github.com/your-username/aws-cicd-canary-pipeline.git
    cd aws-cicd-canary-pipeline
-   
-2. aws configure
 
-3. ./scripts/deploy.sh dev
-
-4. GitHub Configuration
-  1. Create GitHub Connection in AWS CodeStar
-  2. Configure webhook
-  3. Update parameters file with repository details
-
-5. Pipeline Configuration
-  1. Update buildspec.yml if needed
-  2. Configure environment variables
-  3. Set up notifications
-   
-6. Testing
-  1. Make a code change
-  2. Push to repository
-  3. Monitor pipeline execution
-  4. Verify canary deployment
+2. Configure AWS CLI
+   1. aws configure
+   2. AWS Access Key ID: [Your Access Key]
+   3. AWS Secret Access Key: [Your Secret Key]
+   4. Default region name: <region>
+   5. Default output format: json
 
 
-7. docs/configuration.md:
-   
-# Configuration Guide
+# Deploy dev environment
+   "./scripts/deploy.sh dev"
 
-## Environment Variables
+## GitHub Configuration
+1.Create GitHub Connection
 
-### Required Variables
-- AWS_ACCOUNT_ID
-- AWS_REGION
-- ENVIRONMENT
+   1. Go to AWS CodeStar
+   2. Click "Create connection"
+   3. Select GitHub as provider
+   4. Complete OAuth flow
+   5. Note the Connection ARN
+   6. Update Parameters
 
-### Optional Variables
-- CONTAINER_PORT
-- HEALTH_CHECK_PATH
-- LOG_LEVEL
+## Testing
 
-## Pipeline Configuration
+# Build container locally
+docker build -t ${PROJECT_NAME} .
+docker run -p 80:80 ${PROJECT_NAME}
 
-### Source Stage
-- Repository: GitHub
-- Branch: main
-- Events: push
-
-### Build Stage
-- Environment: AWS Linux 2
-- Type: Docker
-- Compute: 3GB memory
-
-### Deploy Stage
-- Type: ECS
-- Cluster: anycompany-cluster
-- Service: auto-created
-
-## Monitoring
-
-### CloudWatch Alarms
-- HTTP 5xx errors
-- Response latency
-- CPU utilization
-- Memory utilization
-
-### Logs
-- Application logs
-- Access logs
-- Build logs
+3. Pipeline Testing
+   1. Make a code change
+   2. Commit and push to repository
+   3. Monitor pipeline execution
