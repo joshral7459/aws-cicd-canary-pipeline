@@ -1,0 +1,15 @@
+{
+    "Parameters": {
+        "Environment": "prod",
+        "ProjectName": "anycompany",
+        "GithubOwner": "your-github-username",
+        "GithubRepo": "aws-cicd-canary-pipeline",
+        "GithubBranch": "main",
+        "DomainName": "anycompany.com"
+    },
+    "Tags": {
+        "Environment": "Production",
+        "Project": "AnyCompany",
+        "Owner": "DevOps Team"
+    }
+}
