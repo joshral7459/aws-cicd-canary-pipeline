@@ -45,6 +45,18 @@
    5. Note the Connection ARN
    6. Update Parameters
 
+2. Update Parameters
+
+# Edit templates/parameters/dev.json
+   -Fill in with your Github info
+
+   {
+    "GithubOwner": "your-username",
+    "GithubRepo": "aws-cicd-canary-pipeline",
+    "GithubBranch": "main"
+}
+
+
 ## Testing
 
 # Build container locally
