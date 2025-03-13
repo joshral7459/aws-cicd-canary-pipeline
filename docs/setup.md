@@ -33,7 +33,7 @@
 
 
 # Deploy dev environment
-   "./scripts/deploy.sh dev"
+   ./scripts/deploy.sh dev
 
 ## GitHub Configuration
 1.Create GitHub Connection
