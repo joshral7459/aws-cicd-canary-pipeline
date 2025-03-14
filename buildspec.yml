@@ -24,7 +24,6 @@ phases:
 artifacts:
   files:
     - imageDefinitions.json
-    - task-definition.json
   name: build-artifact
 
 cache:
