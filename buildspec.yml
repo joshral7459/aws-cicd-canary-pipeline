@@ -21,11 +21,9 @@ phases:
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       - echo Writing image definitions file...
       - printf '{"containerDefinitions":[{"name":"%s","imageUri":"%s"}]}' $PROJECT_NAME-container $REPOSITORY_URI:latest > imagedefinitions.json
-artifacts:
-  files:
-    - imageDefinitions.json
-  name: build-artifact
+      - cat imagedefinitions.json  # Add this to debug the output
 
-cache:
-  paths:
-    - /root/.docker
+artifacts:
+  files: 
+    - imagedefinitions.json
+  discard-paths: yes
