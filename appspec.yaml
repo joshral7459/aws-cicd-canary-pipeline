@@ -3,43 +3,7 @@ Resources:
   - TargetService:
       Type: AWS::ECS::Service
       Properties:
-        TaskDefinition: "<TASK_DEFINITION>"
+        TaskDefinition: <TASK_DEFINITION>
         LoadBalancerInfo:
-          ContainerName: "anycompany-container"
+          ContainerName: "apache"
           ContainerPort: 80
-        PlatformVersion: "LATEST"
-        NetworkConfiguration:
-          AwsvpcConfiguration:
-            Subnets: 
-              - "<SUBNET_1>"
-              - "<SUBNET_2>"
-            SecurityGroups: 
-              - "<SECURITY_GROUP>"
-            AssignPublicIp: "ENABLED"
-Hooks:
-  - BeforeInstall: "PreDeploymentTrafficShift"
-    Properties:
-      Name: PreDeploymentTrafficShift
-      Action: "lambda:InvokeFunction"
-      ActionParameters:
-        FunctionName: "PreDeploymentTrafficShift"
-        Qualifier: "$LATEST"
-  - AfterInstall: "ApprovalFunction"
-    Properties:
-      Name: ApprovalFunction
-      Action: "lambda:InvokeFunction"
-      ActionParameters:
-        FunctionName: "Approval-Function"
-        Qualifier: "$LATEST"
-
-# Traffic routing configuration
-ConfigurationProperties:
-  Canary:
-    InitialWeight: 10
-    Increment: 90
-    Interval: 10
-  Alarms:
-    - AlarmName: "HTTP5xxErrorAlarm"
-      Region: "us-east-1"
-    - AlarmName: "LatencyAlarm"
-      Region: "us-east-1"
