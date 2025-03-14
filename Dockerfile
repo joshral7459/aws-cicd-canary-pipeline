@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Enable PHP modules and Apache modules
-RUN a2enmod php7 rewrite headers
+# Enable Apache modules 
+RUN a2enmod rewrite headers
 
 EXPOSE 80
