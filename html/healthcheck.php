@@ -1,4 +1,4 @@
 <?php
-header("HTTP/1.1 200 OK");
-echo "OK";
-exit();
+// healthcheck.php
+header('Content-Type: application/json');
+echo json_encode(['status' => 'healthy', 'timestamp' => time()]);
