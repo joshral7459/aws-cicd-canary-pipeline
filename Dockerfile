@@ -8,13 +8,8 @@ RUN apt-get update && apt-get install -y \
     git \
     libzip-dev \
     nano \
-    libpng-dev \       # For GD extension (if needed)
-    libjpeg-dev \      # For GD extension (if needed)
-    libfreetype6-dev \ # For GD extension (if needed)
     && docker-php-ext-install \
     zip \
-    pdo_mysql \        # If you need MySQL support
-    gd \              # If you need image processing
     && a2enmod \
     rewrite \
     headers \
