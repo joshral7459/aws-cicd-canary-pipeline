@@ -5,13 +5,12 @@ env:
     PROJECT_NAME: "canary-pipeline"
   parameter-store:
     AWS_ACCOUNT_ID: "/canary-pipeline/aws-account-id"
+    AWS_REGION: "/canary-pipeline/aws-region"
     
 phases:
   pre_build:
     commands:
       - echo Logging in to Amazon ECR...
-      - AWS_ACCOUNT_ID=$(aws ssm get-parameter --name "/cicd-pipeline/aws-account-id" --query "Parameter.Value" --output text)
-      - AWS_REGION=$(aws ssm get-parameter --name "/cicd-pipeline/aws-region" --query "Parameter.Value" --output text)
       - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$PROJECT_NAME
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
