@@ -1,10 +1,4 @@
 version: 0.2
-
-env:
-  parameter-store:
-    AWS_ACCOUNT_ID: "/canary-pipeline/aws-account-id"
-    AWS_REGION: "/canary-pipeline/aws-region"
-    PROJECT_NAME: /canary-pipeline/project-name
     
 phases:
   pre_build:
