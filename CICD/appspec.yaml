@@ -1,0 +1,13 @@
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: "${PROJECT_NAME}-container"
+          ContainerPort: 80
+          ProdTrafficRoute:
+            ListenerArns:
+              - <HTTP_LISTENER_ARN>
+        PlatformVersion: "LATEST"

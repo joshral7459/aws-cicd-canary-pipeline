@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ALB Stack for CICD Pipeline'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the project
+
+  Environment:
+    Type: String
+    Description: Environment tag value
+
+  VpcId:
+    Type: String
+    Description: VPC ID
+
+  PublicSubnet1:
+    Type: String
+    Description: Public Subnet 1 ID
+
+  PublicSubnet2:
+    Type: String
+    Description: Public Subnet 2 ID
+
+  ALBSecurityGroup:
+    Type: String
+    Description: Security Group ID for ALB
+
+Resources:
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref ProductionTargetGroup
+                Weight: 100
+
+  # Add a listener rule for the canary target group
+  CanaryListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPListener
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /canary*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref CanaryTargetGroup
+
+  ProductionTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-prod
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 5
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  CanaryTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-canary
+      VpcId: !Ref VpcId
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 5
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  LoadBalancerArn:
+    Description: Application-Load-Balancer-ARN
+    Value: !Ref ApplicationLoadBalancer
+    Export:
+      Name: !Sub ${ProjectName}-LoadBalancerArn
+
+  LoadBalancerDNS:
+    Description: Application-Load-Balancer-DNSName
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub ${ProjectName}-LoadBalancerDNS
+
+  ProductionTargetGroupArn:
+    Description: Production Target-Group-ARN
+    Value: !Ref ProductionTargetGroup
+    Export:
+      Name: !Sub ${ProjectName}-ProductionTargetGroupArn
+
+  CanaryTargetGroupArn:
+    Description: Canary Target-Group-ARN
+    Value: !Ref CanaryTargetGroup
+    Export:
+      Name: !Sub ${ProjectName}-CanaryTargetGroupArn
+
+  HTTPListenerArn:
+    Description: HTTP-Listener-ARN
+    Value: !Ref HTTPListener
+    Export:
+      Name: !Sub ${ProjectName}-HTTPListenerArn

@@ -1,0 +1,92 @@
+#Security Stack
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Security Stack for CICD Pipeline'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the project
+
+  Environment:
+    Type: String
+    Description: Environment tag value
+
+  VpcId:
+    Type: String
+    Description: VPC ID
+
+Resources:
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ALB
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ECS tasks
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Separate Security Group Rules
+  ALBToECSEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ALBSecurityGroup
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      DestinationSecurityGroupId: !Ref ECSSecurityGroup
+
+  ECSFromALBIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ECSSecurityGroup
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId: !Ref ALBSecurityGroup
+
+  ECSEgressToInternet:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ECSSecurityGroup
+      IpProtocol: -1
+      FromPort: -1
+      ToPort: -1
+      CidrIp: 0.0.0.0/0
+
+
+
+Outputs:
+  ALBSecurityGroup:
+    Description: SecurityGroup-ID-for-ALB
+    Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Sub ${ProjectName}-ALBSecurityGroup
+
+  ECSSecurityGroup:
+    Description: SecurityGroup-ID-for-ECSTasks
+    Value: !Ref ECSSecurityGroup
+    Export:
+      Name: !Sub ${ProjectName}-ECSSecurityGroup
+      

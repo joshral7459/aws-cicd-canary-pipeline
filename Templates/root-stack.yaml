@@ -1,0 +1,102 @@
+#Root Stack
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Foundation Template for Canary Deployments Workshop'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the project
+    AllowedPattern: ^[a-zA-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters and hyphens
+
+  TemplateBucket:
+    Type: String
+    Description: S3 bucket containing nested stack templates
+
+Resources:
+  NetworkStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${TemplateBucket}/nested/network-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: 'DEV'
+
+  IAMStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${TemplateBucket}/nested/iam-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: 'DEV'
+
+  SecurityStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [IAMStack, NetworkStack]
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${TemplateBucket}/nested/security-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: 'DEV'
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+
+  LoadBalancerStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [SecurityStack, NetworkStack]
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${TemplateBucket}/nested/alb-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: 'DEV'
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        PublicSubnet1: !GetAtt NetworkStack.Outputs.PublicSubnet1
+        PublicSubnet2: !GetAtt NetworkStack.Outputs.PublicSubnet2
+        ALBSecurityGroup: !GetAtt SecurityStack.Outputs.ALBSecurityGroup
+
+  ECRStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${TemplateBucket}/nested/ecr-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: 'DEV'
+
+  ECSStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [ECRStack, SecurityStack, IAMStack]
+    Properties:
+      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${TemplateBucket}/nested/ecs-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: 'DEV'
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        ECSSecurityGroup: !GetAtt SecurityStack.Outputs.ECSSecurityGroup
+        ProductionTargetGroupArn: !GetAtt LoadBalancerStack.Outputs.ProductionTargetGroupArn
+        CanaryTargetGroupArn: !GetAtt LoadBalancerStack.Outputs.CanaryTargetGroupArn
+        PublicSubnet1: !GetAtt NetworkStack.Outputs.PublicSubnet1
+        PublicSubnet2: !GetAtt NetworkStack.Outputs.PublicSubnet2
+
+Outputs:
+  LoadBalancerDNS:
+    Description: Application Load Balancer DNS Name
+    Value: !GetAtt LoadBalancerStack.Outputs.LoadBalancerDNS
+
+  ECRRepositoryUri:
+    Description: ECR Repository URI
+    Value: !GetAtt ECRStack.Outputs.RepositoryUri
+
+  ECSClusterName:
+    Description: ECS Cluster Name
+    Value: !GetAtt ECSStack.Outputs.ClusterName
+
+  ProductionServiceName:
+    Description: Production Service Name
+    Value: !GetAtt ECSStack.Outputs.ProductionServiceName
+
+  CanaryServiceName:
+    Description: Canary Service Name
+    Value: !GetAtt ECSStack.Outputs.CanaryServiceName
+
+  DebugTaskRoleArn:
+    Description: Debug - Task Role ARN being passed to ECS Stack
+    Value: !GetAtt IAMStack.Outputs.TaskRoleArn

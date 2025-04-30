@@ -1,0 +1,348 @@
+#IAM Stack
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'IAM Stack for CICD Pipeline'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the project
+
+  Environment:
+    Type: String
+    Description: Environment tag value
+
+Resources:
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-pipeline-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeStarFullAccess
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  PipelinePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${ProjectName}-pipeline-policy
+      Roles: 
+        - !Ref PipelineRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - codestar-connections:UseConnection
+              - codestar-connections:GetConnection
+              - codestar-connections:ListConnections
+            Resource: !Sub arn:aws:codestar-connections:${AWS::Region}:${AWS::AccountId}:connection/*
+          # Add CloudFormation permissions
+          - Effect: Allow
+            Action:
+              - cloudformation:CreateStack
+              - cloudformation:DeleteStack
+              - cloudformation:DescribeStacks
+              - cloudformation:UpdateStack
+              - cloudformation:CreateChangeSet
+              - cloudformation:DeleteChangeSet
+              - cloudformation:DescribeChangeSet
+              - cloudformation:ExecuteChangeSet
+              - cloudformation:SetStackPolicy
+              - cloudformation:ValidateTemplate
+              - cloudformation:ListStacks
+            Resource: '*'
+          # Add CodeStar connection permissions
+          - Effect: Allow
+            Action:
+              - codestar-connections:UseConnection
+            Resource: '*'
+          # Existing permissions
+          - Effect: Allow
+            Action:
+              - s3:*
+            Resource:
+              - !Sub arn:aws:s3:::${ProjectName}-s3-*
+              - !Sub arn:aws:s3:::${ProjectName}-s3-*/*
+          - Effect: Allow
+            Action:
+              - codebuild:BatchGetBuilds
+              - codebuild:StartBuild
+            Resource: !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${ProjectName}-*
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-*
+          - Effect: Allow
+            Action:
+              - ecs:DescribeServices
+              - ecs:DescribeTaskDefinition
+              - ecs:DescribeTasks
+              - ecs:ListTasks
+              - ecs:RegisterTaskDefinition
+              - ecs:UpdateService
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource: '*'
+            Condition:
+              StringEqualsIfExists:
+                iam:PassedToService:
+                  - ecs-tasks.amazonaws.com
+
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-build-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess
+        - !Ref BuildPolicy
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  BuildPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${ProjectName}-build-policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # Add CloudFormation permissions
+          - Effect: Allow
+            Action:
+              - cloudformation:ValidateTemplate
+            Resource: '*'
+          # Existing permissions
+          - Effect: Allow
+            Action:
+              - s3:*
+            Resource:
+              - !Sub arn:aws:s3:::${ProjectName}-s3-*
+              - !Sub arn:aws:s3:::${ProjectName}-s3-*/*
+          - Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: 
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ProjectName}-*
+
+  TrafficShiftRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-traffic-shift-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  TrafficShiftPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${ProjectName}-traffic-shift-policy
+      Roles: 
+        - !Ref TrafficShiftRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:ModifyListener
+              - elasticloadbalancing:DescribeListeners
+              - elasticloadbalancing:DescribeRules
+              - elasticloadbalancing:ModifyRule
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - codepipeline:PutJobSuccessResult
+              - codepipeline:PutJobFailureResult
+            Resource: '*'
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-task-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  TaskExecutionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${ProjectName}-task-execution-policy
+      Roles: 
+        - !Ref TaskExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: 
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/${ProjectName}:*
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/${ProjectName}*:*
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-task-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  TaskPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${ProjectName}-task-policy
+      Roles: 
+        - !Ref TaskRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # Existing ECS permissions
+          - Effect: Allow
+            Action: 
+              - ecs:DescribeTasks
+              - ecs:DescribeServices
+              - ecs:Submit*
+              - ecs:UpdateContainerInstancesState
+            Resource: '*'
+
+          # Existing SSM permissions
+          - Effect: Allow
+            Action:
+              - ssm:GetParameters
+              - ssm:GetParameter
+              - ssm:GetParametersByPath
+              - ssmmessages:CreateControlChannel
+              - ssmmessages:CreateDataChannel
+              - ssmmessages:OpenControlChannel
+              - ssmmessages:OpenDataChannel
+            Resource:
+              - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/*
+          
+          # Existing Secrets Manager permissions
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource:
+              - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ProjectName}/*
+          
+          # Existing S3 permissions
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:aws:s3:::${ProjectName}-*
+              - !Sub arn:aws:s3:::${ProjectName}-*/*
+
+          # CloudWatch Logs permissions
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - logs:CreateLogGroup
+            Resource:
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/ecs/${ProjectName}*
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/ecs/${ProjectName}*:log-stream:*
+
+Outputs:
+  PipelineRoleArn:
+    Description: Pipeline-Role-ARN
+    Value: !GetAtt PipelineRole.Arn
+    Export:
+      Name: !Sub ${ProjectName}-PipelineRoleArn
+
+  BuildRoleArn:
+    Description: Build-Role-ARN
+    Value: !GetAtt BuildRole.Arn
+    Export:
+      Name: !Sub ${ProjectName}-BuildRoleArn
+
+  TrafficShiftRoleArn:
+    Description: Traffic-Shift-Lambda-Role-ARN
+    Value: !GetAtt TrafficShiftRole.Arn
+    Export:
+      Name: !Sub ${ProjectName}-TrafficShiftRoleArn
+
+  TaskExecutionRoleArn:
+    Description: ECS-Task-Execution-Role-ARN
+    Value: !GetAtt TaskExecutionRole.Arn
+    Export:
+      Name: !Sub ${ProjectName}-TaskExecutionRoleArn
+
+  TaskRoleArn:
+    Description: Task-Role-ARN
+    Value: !GetAtt TaskRole.Arn
+    Export:
+      Name: !Sub ${ProjectName}-TaskRoleArn

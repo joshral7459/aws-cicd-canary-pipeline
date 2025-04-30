@@ -1,0 +1,180 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS Stack for CICD Pipeline'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the project
+
+  Environment:
+    Type: String
+    Description: Environment tag value
+
+  VpcId:
+    Type: String
+    Description: VPC ID
+
+  ECSSecurityGroup:
+    Type: String
+    Description: Security Group ID for ECS Tasks
+
+  ProductionTargetGroupArn:
+    Type: String
+    Description: Production Target Group ARN
+
+  CanaryTargetGroupArn:
+    Type: String
+    Description: Canary Target Group ARN
+
+  PublicSubnet1:
+    Type: String
+    Description: Public Subnet 1 ID
+
+  PublicSubnet2:
+    Type: String
+    Description: Public Subnet 2 ID
+
+
+Resources:
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${ProjectName}-cluster
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${ProjectName}
+      RetentionInDays: 30
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-task
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue 
+        'Fn::Sub': '${ProjectName}-TaskExecutionRoleArn'
+      TaskRoleArn: !ImportValue 
+        'Fn::Sub': '${ProjectName}-TaskRoleArn'
+      ContainerDefinitions:
+        - Name: !Sub ${ProjectName}-container
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ProjectName}-repository:latest'
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: !Ref ProjectName
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  ProductionService:
+    Type: AWS::ECS::Service
+    DependsOn: TaskDefinition
+    Properties:
+      ServiceName: !Sub ${ProjectName}-production
+      Cluster: !Ref ECSCluster
+      DesiredCount: 0
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+          Subnets:
+            - !Ref PublicSubnet1
+            - !Ref PublicSubnet2
+      LoadBalancers:
+        - TargetGroupArn: !Ref ProductionTargetGroupArn
+          ContainerPort: 80
+          ContainerName: !Sub ${ProjectName}-container
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      EnableExecuteCommand: true
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  CanaryService:
+    Type: AWS::ECS::Service
+    DependsOn: TaskDefinition
+    Properties:
+      ServiceName: !Sub ${ProjectName}-canary
+      Cluster: !Ref ECSCluster
+      DesiredCount: 0
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+          Subnets:
+            - !Ref PublicSubnet1
+            - !Ref PublicSubnet2
+      LoadBalancers:
+        - TargetGroupArn: !Ref CanaryTargetGroupArn
+          ContainerPort: 80
+          ContainerName: !Sub ${ProjectName}-container
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      EnableExecuteCommand: true
+      Tags:
+        - Key: cicd
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  ClusterName:
+    Description: ECS-Cluster-Name
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub ${ProjectName}-ClusterName
+
+  ProductionServiceName:
+    Description: Production-Service-Name
+    Value: !GetAtt ProductionService.Name
+    Export:
+      Name: !Sub ${ProjectName}-ProductionServiceName
+
+  CanaryServiceName:
+    Description: Canary-Service-Name
+    Value: !GetAtt CanaryService.Name
+    Export:
+      Name: !Sub ${ProjectName}-CanaryServiceName

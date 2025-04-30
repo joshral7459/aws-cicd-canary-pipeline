@@ -1,0 +1,30 @@
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: "${PROJECT_NAME}-container"
+          ContainerPort: 80
+          ProdTrafficRoute:
+            ListenerArns:
+              - <HTTP_LISTENER_ARN>
+          TestTrafficRoute:
+            ListenerArns:
+              - <HTTP_LISTENER_ARN>
+          TargetGroups:
+            - <PRODUCTION_TARGET_GROUP_ARN>
+            - <CANARY_TARGET_GROUP_ARN>
+        PlatformVersion: "LATEST"
+        NetworkConfiguration:
+          AwsvpcConfiguration:
+            Subnets:
+              - <PUBLIC_SUBNET_1>
+              - <PUBLIC_SUBNET_2>
+            SecurityGroups:
+              - <ECS_SECURITY_GROUP>
+            AssignPublicIp: ENABLED
+Hooks:
+  - BeforeAllowTraffic: <BEFORE_ALLOW_TRAFFIC_HOOK_FUNCTION>
+  - AfterAllowTraffic: <AFTER_ALLOW_TRAFFIC_HOOK_FUNCTION>
