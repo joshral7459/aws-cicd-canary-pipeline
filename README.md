@@ -27,10 +27,10 @@ First, clone the central GitHub repository containing all the workshop templates
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR-ORGANIZATION/canary-workshop.git
+git clone https://https://github.com/joshral7459/aws-cicd-canary-pipeline.git
 
 # Navigate to the repository directory
-cd canary-workshop
+cd aws-cicd-canary-pipeline
 
 # Verify all required files are present
 ls -la Templates/
