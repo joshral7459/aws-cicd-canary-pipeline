@@ -3,6 +3,14 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Foundation Template for Canary Deployments Workshop'
 
 Parameters:
+  MyAssetsBucketName:
+    Description: Assets bucket name
+    Type: String
+  
+  MyAssetsBucketPrefix:
+    Description: Assets bucket prefix
+    Type: String
+
   ProjectName:
     Type: String
     Description: Name of the project
